@@ -65,8 +65,12 @@ class _ChatPageState extends State<ChatPage> {
   /// done → idle 타이머.
   Timer? _idleTimer;
 
+  /// 긴 답의 첫 줄로 스크롤하는 타이머.
+  Timer? _revealTimer;
+
   @override
   void dispose() {
+    _revealTimer?.cancel();
     _typingTimer?.cancel();
     _minDotsTimer?.cancel();
     _idleTimer?.cancel();
@@ -241,13 +245,13 @@ class _ChatPageState extends State<ChatPage> {
     await _scrollToBottom();
     if (!mounted) return;
 
+    final id = _slotId ?? _newId();
     setState(() {
-      final slot = _slotId;
-      if (slot != null) {
+      if (_slotId != null) {
         _slotId = null;
-        _state = _state.copyWith(messages: [..._state.messages, make(slot)]);
+        _state = _state.copyWith(messages: [..._state.messages, make(id)]);
       } else {
-        _append(make(_newId()));
+        _append(make(id));
       }
       _state = _state.copyWith(
         status: status,
@@ -255,6 +259,16 @@ class _ChatPageState extends State<ChatPage> {
         clearError: error == null,
       );
     });
+
+    // 긴 답은 끝이 아니라 첫 줄부터 보이게 (NN/g 7번 · 부록 C.3).
+    // 점 → 답으로 자라는 애니메이션이 끝난 뒤에 움직인다 — 한 번에 하나.
+    if (status == ChatStatus.done) {
+      _revealTimer?.cancel();
+      _revealTimer = Timer(_d(Motion.insert), () {
+        WidgetsBinding.instance.addPostFrameCallback((_) => _revealStart(id));
+        WidgetsBinding.instance.scheduleFrame();
+      });
+    }
 
     // ⑤ done은 잠시 보여 준 뒤 idle로 — "답이 도착했어요"가 계속 남지 않게.
     if (status == ChatStatus.done) {
@@ -265,6 +279,47 @@ class _ChatPageState extends State<ChatPage> {
         }
       });
     }
+  }
+
+  /// 말풍선 [id]가 화면보다 길면, 그 말풍선의 첫 줄이 화면 위쪽에 오도록 스크롤한다.
+  ///
+  /// reverse 목록에서 offset 0(맨 아래)은 긴 답의 마지막 줄을 보여 준다.
+  /// 그대로 두면 사용자는 끝부터 보고 위로 올려 읽어야 한다.
+  void _revealStart(int id, [double? lastHeight]) {
+    if (!mounted || !_scroll.hasClients) return;
+    BuildContext? target;
+    void visit(Element e) {
+      if (target != null) return;
+      final w = e.widget;
+      if (w is Bubble && w.message.id == id) {
+        target = e;
+        return;
+      }
+      e.visitChildren(visit);
+    }
+
+    (_listKey.currentContext as Element?)?.visitChildren(visit);
+    final box = target?.findRenderObject();
+    if (box is! RenderBox || !box.hasSize) return;
+
+    // 점 → 답으로 자라는 중이면 다 자랄 때까지 한 프레임씩 기다린다.
+    // (자라는 도중에 맞추면 남은 성장분만큼 첫 줄이 다시 위로 밀려난다.)
+    final height = box.size.height;
+    if (height != lastHeight) {
+      WidgetsBinding.instance
+          .addPostFrameCallback((_) => _revealStart(id, height));
+      WidgetsBinding.instance.scheduleFrame();
+      return;
+    }
+    if (height <= _scroll.position.viewportDimension) return;
+
+    // reverse(아래→위) 축에서 alignment 1.0 = 말풍선 윗변을 화면 윗변에 맞춤.
+    Scrollable.ensureVisible(
+      target!,
+      alignment: 1.0,
+      duration: _d(Motion.change),
+      curve: Curves.easeOut,
+    );
   }
 
   /// 오류 말풍선을 거두고 마지막 질문을 다시 보낸다.
@@ -345,23 +400,9 @@ class _ChatPageState extends State<ChatPage> {
               ),
             ),
 
-            // 입력창 위 오류 줄 — 나타날 때도 사라질 때도 200ms로 접힌다.
-            AnimatedSwitcher(
-              duration: _d(Motion.change),
-              transitionBuilder: (child, animation) => SizeTransition(
-                sizeFactor: animation,
-                alignment: Alignment.bottomCenter,
-                child: FadeTransition(opacity: animation, child: child),
-              ),
-              child: _state.status == ChatStatus.error
-                  ? _ErrorBar(
-                      key: const ValueKey('error'),
-                      message: _state.error ?? '응답을 받지 못했습니다',
-                      onRetry: _retry,
-                    )
-                  : const SizedBox(key: ValueKey('none'), width: double.infinity),
-            ),
-
+            // 오류는 목록 안의 오류 말풍선(+ 다시 시도) 하나로만 보여 준다.
+            // 입력창 위에 같은 문구를 또 띄우면 중복이고, 말풍선과 동시에
+            // 움직여 "한 번에 하나" 원칙도 깨진다.
             _InputBar(
               controller: _controller,
               focusNode: _focus,
@@ -465,34 +506,6 @@ class _StatusLabel extends StatelessWidget {
         text,
         key: ValueKey(status),
         style: TextStyle(fontSize: 12, color: color),
-      ),
-    );
-  }
-}
-
-/// 입력창 바로 위의 오류 줄 + 다시 시도 (그림 11).
-class _ErrorBar extends StatelessWidget {
-  const _ErrorBar({super.key, required this.message, required this.onRetry});
-
-  final String message;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Semantics(
-      liveRegion: true,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 2, 8, 0),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(message,
-                  style: TextStyle(color: scheme.error, fontSize: 13)),
-            ),
-            TextButton(onPressed: onRetry, child: const Text('다시 시도')),
-          ],
-        ),
       ),
     );
   }

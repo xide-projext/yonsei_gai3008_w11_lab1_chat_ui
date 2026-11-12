@@ -39,6 +39,8 @@ class Bubble extends StatelessWidget {
         ),
         decoration: BoxDecoration(color: bg, borderRadius: radius),
         child: Semantics(
+          // 오류는 화면 낭독기가 바로 읽어 준다.
+          liveRegion: message.isError,
           label: message.isError
               ? '오류'
               : (isUser ? '내 메시지' : 'AI 답변'),

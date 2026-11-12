@@ -125,6 +125,24 @@ void main() {
     expect(find.text('여러 줄짜리 답입니다.\n둘째 줄\n셋째 줄'), findsOneWidget);
   });
 
+  testWidgets('화면보다 긴 답은 끝이 아니라 첫 줄부터 보인다', (tester) async {
+    final ai = await pumpChat(tester);
+    await send(tester, '길게 설명해 줘');
+    await tester.pump(Motion.insert);
+    await settle(tester);
+
+    final long = ['첫 줄입니다', for (var i = 2; i <= 60; i++) '$i번째 줄'].join('\n');
+    ai.reply(long);
+    await settle(tester);
+    await settle(tester);
+
+    final list = tester.getRect(find.byType(AnimatedList));
+    final answer = tester.getRect(find.text(long));
+    expect(answer.height, greaterThan(list.height), reason: '시험 전제: 답이 화면보다 길다');
+    // 답의 윗변(첫 줄)이 목록 맨 위 근처에 있다
+    expect(answer.top, inInclusiveRange(list.top, list.top + 40));
+  });
+
   testWidgets('답이 바로 와도 점은 최소 400ms 보인다 (깜빡임 방지)', (tester) async {
     final ai = await pumpChat(tester);
     await send(tester, '질문');
@@ -153,16 +171,18 @@ void main() {
     ai.fail(const AiException(500));
     await tester.pumpAndSettle();
 
-    expect(find.text('응답을 받지 못했습니다'), findsNWidgets(2)); // 말풍선 + 오류 줄
-    expect(find.text('다시 시도'), findsNWidgets(2));
+    // 오류 문구와 다시 시도는 오류 말풍선 안에 한 번만 (중복 없음)
+    expect(find.text('응답을 받지 못했습니다'), findsOneWidget);
+    expect(find.text('다시 시도'), findsOneWidget);
+    expect(find.text('응답 실패 · 다시 시도할 수 있어요'), findsOneWidget);
 
     final errorBubble = find.ancestor(
-      of: find.text('응답을 받지 못했습니다').first,
+      of: find.text('응답을 받지 못했습니다'),
       matching: find.byType(Bubble),
     );
     final h0 = tester.getSize(errorBubble).height;
 
-    await tester.tap(find.text('다시 시도').first);
+    await tester.tap(find.text('다시 시도'));
     await tester.pump();
     // 사라지기 시작한 첫 프레임에도 버튼이 남아 있어 높이가 그대로다.
     expect(tester.getSize(errorBubble).height, h0);
