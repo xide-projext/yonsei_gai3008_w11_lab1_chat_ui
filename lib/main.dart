@@ -99,24 +99,10 @@ class _ChatPageState extends State<ChatPage> {
 }
 
 /// ───────────────────────────────────────────────────────────────
-/// TODO 2 — 말풍선 2종 (사용자 오른쪽 / AI 왼쪽)
+/// ✅ 할 일 2 — 말풍선 2종 (사용자 오른쪽 / AI 왼쪽)
 ///
-/// 지금은 글자만 보이는 상자다. 다음을 채워 넣자.
-///
-/// TIP:
-///  · Align(alignment: isUser ? Alignment.centerRight : Alignment.centerLeft)
-///  · Container(
-///      margin: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-///      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-///      constraints: BoxConstraints(maxWidth: 420),
-///      decoration: BoxDecoration(
-///        color: isUser ? colorScheme.primaryContainer
-///                      : colorScheme.surfaceContainerHighest,
-///        borderRadius: BorderRadius.circular(14),
-///      ),
-///    )
-///  · 색은 Theme.of(context).colorScheme에서 꺼내면 다크 모드에서도 안전하다.
-///  · 긴 글은 자동으로 줄바꿈된다. maxWidth만 잡아 주면 된다.
+///  · Align으로 좌우를 나누고, 색은 colorScheme에서 꺼낸다.
+///  · maxWidth를 잡아 두면 긴 글은 자동으로 줄바꿈된다.
 /// ───────────────────────────────────────────────────────────────
 class _Bubble extends StatelessWidget {
   const _Bubble({required this.message});
@@ -125,10 +111,30 @@ class _Bubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      child: Text(message.text),
+    final colorScheme = Theme.of(context).colorScheme;
+    final isUser = message.isUser;
+
+    return Align(
+      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        constraints: const BoxConstraints(maxWidth: 420),
+        decoration: BoxDecoration(
+          color: isUser
+              ? colorScheme.primaryContainer
+              : colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Text(
+          message.text,
+          style: TextStyle(
+            color: isUser
+                ? colorScheme.onPrimaryContainer
+                : colorScheme.onSurface,
+          ),
+        ),
+      ),
     );
   }
 }
