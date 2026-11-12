@@ -35,13 +35,8 @@ class ChatPage extends StatefulWidget {
 }
 
 class _ChatPageState extends State<ChatPage> {
-  /// 실습용 가짜 대화 — API를 붙이기 전까지 이 목록으로 화면을 만든다.
-  final List<ChatMessage> _messages = [
-    ChatMessage(text: '오늘 뭐 배워?', isUser: true),
-    ChatMessage(text: 'AI 챗봇에 움직이는 응답을 붙입니다.', isUser: false),
-    ChatMessage(text: '타이핑 점은 왜 필요해요?', isUser: true),
-    ChatMessage(text: '응답이 1초를 넘으면 앱이 멈춘 것처럼 보이기 때문입니다.', isUser: false),
-  ];
+  /// 대화 목록 — 처음엔 비어 있어서 빈 상태 문구가 보인다.
+  final List<ChatMessage> _messages = [];
 
   /// 입력창의 글자를 읽고 지우는 컨트롤러.
   final _controller = TextEditingController();
@@ -65,9 +60,9 @@ class _ChatPageState extends State<ChatPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // TODO 5 — 키보드가 입력창을 가리지 않게
-      // TIP: Scaffold의 resizeToAvoidBottomInset은 기본값이 true다.
-      //      body를 SafeArea로 감싸 홈 인디케이터와 노치를 피한다.
+      // ✅ 할 일 5 — 키보드가 올라오면 body가 줄어들어 입력창이 위로 밀린다.
+      //    SafeArea는 홈 인디케이터·노치를 피한다.
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(title: const Text('AI Chat — 실습 1')),
       body: SafeArea(
         child: Column(
@@ -78,16 +73,35 @@ class _ChatPageState extends State<ChatPage> {
             //    · reverse:true면 index 0이 화면 맨 아래(최신)다.
             //    · 그래서 _messages[length - 1 - i]로 거꾸로 꺼낸다.
             // ─────────────────────────────────────────────────────────
+            // ✅ 할 일 4 — 빈 상태: Stack으로 목록 위에 안내 문구를 겹친다
             Expanded(
-              child: ListView.builder(
-                reverse: true,
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                itemCount: _messages.length,
-                itemBuilder: (context, index) {
-                  final message =
-                      _messages[_messages.length - 1 - index];
-                  return _Bubble(message: message);
-                },
+              child: Stack(
+                children: [
+                  ListView.builder(
+                    reverse: true,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    itemCount: _messages.length,
+                    itemBuilder: (context, index) {
+                      final message =
+                          _messages[_messages.length - 1 - index];
+                      return _Bubble(message: message);
+                    },
+                  ),
+                  if (_messages.isEmpty)
+                    Center(
+                      child: Text(
+                        '무엇이든 물어보세요',
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleMedium
+                            ?.copyWith(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant,
+                            ),
+                      ),
+                    ),
+                ],
               ),
             ),
 
