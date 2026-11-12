@@ -23,6 +23,7 @@ void main() {
     await tester.pumpWidget(const ChatLabApp());
 
     await tester.enterText(find.byType(TextField), '안녕하세요');
+    await tester.pump(); // 입력이 생기면 전송 버튼이 활성화된다
     await tester.tap(find.byIcon(Icons.send));
     await tester.pump();
 
