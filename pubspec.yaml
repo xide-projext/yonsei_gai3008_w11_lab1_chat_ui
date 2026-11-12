@@ -58,6 +58,15 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
+  # 한글 폰트를 앱에 넣는다. 웹(CanvasKit)은 한글 글리프가 없으면
+  # 처음 입력할 때 대체 폰트를 내려받는 동안 □(tofu)를 그린다.
+  # 번들 폰트는 앱 시작 전에 로드되므로 처음부터 한글이 보인다. (SIL OFL 1.1)
+  fonts:
+    - family: NotoSansKR
+      fonts:
+        - asset: assets/fonts/NotoSansKR-Regular.otf
+        - asset: assets/fonts/NotoSansKR-Bold.otf
+          weight: 700
 
   # To add assets to your application, add an assets section, like this:
   # assets:
