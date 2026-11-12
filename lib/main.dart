@@ -35,7 +35,7 @@ class ChatPage extends StatefulWidget {
 }
 
 class _ChatPageState extends State<ChatPage> {
-  /// 실습용 가짜 대화 — API를 붙이기 전까지 이 목록으로 화면을 만든다.
+/// 채팅 메시지 목록과 사용자 입력을 관리한다.
   final _controller = TextEditingController();
   final List<ChatMessage> _messages = [
   ChatMessage(text: 'Hello!', isUser: true),
