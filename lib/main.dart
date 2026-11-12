@@ -35,23 +35,46 @@ class ChatPage extends StatefulWidget {
 }
 
 class _ChatPageState extends State<ChatPage> {
-  /// 실습용 가짜 대화 — API를 붙이기 전까지 이 목록으로 화면을 만든다.
-  final List<ChatMessage> _messages = const [
-    ChatMessage(text: '오늘 뭐 배워?', isUser: true),
-    ChatMessage(text: 'AI 챗봇에 움직이는 응답을 붙입니다.', isUser: false),
-    ChatMessage(text: '타이핑 점은 왜 필요해요?', isUser: true),
-    ChatMessage(text: '응답이 1초를 넘으면 앱이 멈춘 것처럼 보이기 때문입니다.', isUser: false),
+/// 채팅 메시지 목록과 사용자 입력을 관리한다.
+  final _controller = TextEditingController();
+  final List<ChatMessage> _messages = [
+  ChatMessage(text: 'Hello!', isUser: true),
+  ChatMessage(text: 'Hi! How can I help?', isUser: false),
   ];
+
+
+  void _send() {
+    final text = _controller.text.trim();
+
+    if (text.isEmpty) return;
+
+    setState(() {
+      _messages.add(
+        ChatMessage(text: text, isUser: true),
+      );
+    });
+
+    _controller.clear();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
 
   @override
   Widget build(BuildContext context) {
+    
     return Scaffold(
-      // TODO 5 — 키보드가 입력창을 가리지 않게
-      // TIP: Scaffold의 resizeToAvoidBottomInset은 기본값이 true다.
-      //      body를 SafeArea로 감싸 홈 인디케이터와 노치를 피한다.
-      appBar: AppBar(title: const Text('AI Chat — 실습 1')),
+      resizeToAvoidBottomInset: true,
+      appBar: AppBar(
+        title: const Text('AI Chat — 실습 1'),
+      ),
       body: SafeArea(
         child: Column(
+
           children: [
             // ─────────────────────────────────────────────────────────
             // ✅ 할 일 1 — 완료된 부분
@@ -59,18 +82,35 @@ class _ChatPageState extends State<ChatPage> {
             //    · reverse:true면 index 0이 화면 맨 아래(최신)다.
             //    · 그래서 _messages[length - 1 - i]로 거꾸로 꺼낸다.
             // ─────────────────────────────────────────────────────────
+            
             Expanded(
-              child: ListView.builder(
-                reverse: true,
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                itemCount: _messages.length,
-                itemBuilder: (context, index) {
-                  final message =
-                      _messages[_messages.length - 1 - index];
-                  return _Bubble(message: message);
-                },
+              child: Stack(
+                children: [
+                  ListView.builder(
+                    reverse: true,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    itemCount: _messages.length,
+                    itemBuilder: (context, index) {
+                      final message =
+                          _messages[_messages.length - 1 - index];
+                      return _Bubble(message: message);
+                    },
+                  ),
+
+                  if (_messages.isEmpty)
+                    const Center(
+                      child: Text(
+                        '무엇이든 물어보세요',
+                        style: TextStyle(
+                          fontSize: 18,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
+
 
             // ─────────────────────────────────────────────────────────
             // TODO 4 — 빈 상태
@@ -90,7 +130,37 @@ class _ChatPageState extends State<ChatPage> {
             //  · 보낼 때 _controller.clear() 하고 setState로 목록에 추가한다.
             //  · dispose()에서 _controller.dispose()를 잊지 않는다.
             // ─────────────────────────────────────────────────────────
-            const _TodoBar(label: 'TODO 3 — 여기에 입력창을 만든다'),
+            
+Padding(
+  padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+  child: Row(
+    children: [
+      Expanded(
+        child: TextField(
+          controller: _controller,
+          textInputAction: TextInputAction.send,
+          onSubmitted: (_) => _send(),
+          decoration: InputDecoration(
+            hintText: '메시지를 입력하세요...',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(24),
+            ),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 12,
+            ),
+          ),
+        ),
+      ),
+      const SizedBox(width: 8),
+      IconButton.filled(
+        onPressed: _send,
+        icon: const Icon(Icons.send),
+      ),
+    ],
+  ),
+),
+
           ],
         ),
       ),
@@ -118,6 +188,7 @@ class _ChatPageState extends State<ChatPage> {
 ///  · 색은 Theme.of(context).colorScheme에서 꺼내면 다크 모드에서도 안전하다.
 ///  · 긴 글은 자동으로 줄바꿈된다. maxWidth만 잡아 주면 된다.
 /// ───────────────────────────────────────────────────────────────
+
 class _Bubble extends StatelessWidget {
   const _Bubble({required this.message});
 
@@ -125,41 +196,33 @@ class _Bubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      child: Text(message.text),
+    final colors = Theme.of(context).colorScheme;
+
+    return Align(
+      alignment: message.isUser
+          ? Alignment.centerRight
+          : Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 4,
+        ),
+        padding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 10,
+        ),
+        constraints: const BoxConstraints(maxWidth: 420),
+        decoration: BoxDecoration(
+          color: message.isUser
+              ? colors.primaryContainer
+              : colors.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Text(message.text),
+      ),
     );
   }
 }
 
 /// TODO 3이 끝나면 지운다. 지금은 입력창 자리를 보여 주는 표시일 뿐이다.
-class _TodoBar extends StatelessWidget {
-  const _TodoBar({required this.label});
 
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(12, 4, 12, 12),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.edit_outlined, size: 18),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              label,
-              style: const TextStyle(fontSize: 13),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
