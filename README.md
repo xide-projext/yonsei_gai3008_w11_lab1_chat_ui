@@ -57,8 +57,10 @@ idle ──보내기──▶ sending ──250ms──▶ typing ──200─�
 | 응답 대기 | 목록 맨 아래 "답 대기" 칸의 `TypingDots` | 오르기 200ms + 내리기 200ms · 간격 200ms · 최소 400ms 표시 |
 | 답 도착 | 점 칸이 **같은 자리에서** 답 말풍선으로 바뀜 (`AnimatedSize` + `AnimatedSwitcher`) | 250ms |
 | 내 메시지 | `AnimatedList.insertItem` (Size + Fade) | 250ms |
-| 오류 줄 · 앱바 상태 | `AnimatedSwitcher` (왼쪽 정렬) | 200ms |
-| 새 메시지 | `ScrollController.animateTo(0)` | 200ms |
+| 오류 | 점 칸이 같은 자리에서 **오류 말풍선 + 다시 시도**로 바뀜 (화면에 오류는 한 곳만) | 250ms |
+| 앱바 상태 문구 | `AnimatedSwitcher` (왼쪽 정렬) | 200ms |
+| 새 메시지 | `ScrollController.animateTo(0)` — 삽입 **전에** 끝냄 | 200ms |
+| 긴 답 | 화면보다 길면 다 자란 뒤 **첫 줄**로 스크롤 (NN/g 7번) | 200ms |
 
 - **한 번에 하나만 움직인다.** 위를 보고 있었다면 먼저 맨 아래로 스크롤한 뒤 삽입한다. 내 말풍선 삽입이 끝난 뒤(250ms) 점 칸이 들어오고, 답이 오면 그 칸이 제자리에서 답으로 자라므로 목록이 튀지 않는다.
 - 점이 한 번 보이면 **최소 400ms** 유지한다(빠른 응답에서 깜빡임 방지). done("답이 도착했어요")은 1.5초 뒤 idle로 돌아간다.
@@ -93,8 +95,16 @@ assets/fonts/               Noto Sans KR (SIL OFL) — 웹에서 한글 □ 방�
 test/
   widget_test.dart          빈 상태 · 4상태 흐름 · 연타 방지 · 오류→재시도 · Reduce Motion
   ai_client_test.dart       200 · 429 백오프 · 401 · timeout · 응답 파싱
+tool/capture_screenshots_test.dart  전/후 캡처 생성기 (--update-goldens)
 docs/w11.md                 포트폴리오 5칸
+docs/screenshots/           전/후 캡처
 ```
+
+## 화면
+
+| 전 (스타터) | 후 — 대화 | 후 — 점 3개 | 후 — 오류 |
+|---|---|---|---|
+| ![before](docs/screenshots/before_starter.png) | ![answer](docs/screenshots/after_3_answer.png) | ![typing](docs/screenshots/after_2_typing.png) | ![error](docs/screenshots/after_4_error.png) |
 
 ## 확인
 
@@ -109,7 +119,8 @@ flutter analyze && flutter test
 - [x] 오류에서 재시도가 동작한다
 - [x] 키보드가 입력창을 가리지 않는다 (`resizeToAvoidBottomInset` · `SafeArea` · Android `adjustResize`)
 - [x] Reduce Motion에서 즉시 표시된다
-- [ ] 1분 구술 녹음 · 커밋 2 · PR 1 ← 직접
+- [x] 커밋 2 · PR 1 — [PR #7](https://github.com/xide-projext/yonsei_gai3008_w11_lab1_chat_ui/pull/7)
+- [ ] 1분 구술 녹음 ← 직접
 
 ---
 
