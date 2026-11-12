@@ -125,10 +125,31 @@ class _Bubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      child: Text(message.text),
+    final colorScheme = Theme.of(context).colorScheme;
+    final isUser = message.isUser;
+
+    return Align(
+      // 사용자면 오른쪽, AI면 왼쪽에 붙인다.
+      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        // maxWidth를 잡아 두면 긴 글은 자동으로 줄바꿈된다.
+        constraints: const BoxConstraints(maxWidth: 420),
+        decoration: BoxDecoration(
+          // 사용자와 AI의 배경색을 다르게 한다.
+          color: isUser
+              ? colorScheme.primaryContainer
+              : colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Text(
+          message.text,
+          style: TextStyle(
+            color: isUser ? colorScheme.onPrimaryContainer : colorScheme.onSurface,
+          ),
+        ),
+      ),
     );
   }
 }
