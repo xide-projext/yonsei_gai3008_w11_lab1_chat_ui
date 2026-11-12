@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 void main() => runApp(const ChatLabApp());
@@ -27,6 +29,57 @@ class ChatMessage {
   final bool isUser;
 }
 
+// ─────────────────────────────────────────────────────────────────
+// 실습 ④ — 오류와 재시도
+//
+// 아직 프록시(w12/ai)를 붙이지 않았으므로, 실제 AiClient 대신
+// FakeAiClient로 서버 응답을 흉내 낸다. 앱바의 🐞 메뉴에서
+// 정상 / 401 / 429 / 500 / timeout 중 하나를 골라 오류를 일부러 만든다.
+// (프록시를 붙이면 FakeAiClient만 진짜 AiClient로 바꾸면 된다.)
+// ─────────────────────────────────────────────────────────────────
+
+/// 서버가 돌려줄 수 있는 결과 — 시험용으로 고른다.
+enum FakeMode { ok, unauthorized401, rateLimit429, server500, timeout }
+
+extension FakeModeLabel on FakeMode {
+  String get label => switch (this) {
+        FakeMode.ok => '정상 응답',
+        FakeMode.unauthorized401 => '401 키/권한 오류',
+        FakeMode.rateLimit429 => '429 요청 너무 많음',
+        FakeMode.server500 => '500 서버 오류',
+        FakeMode.timeout => '시간 초과 (timeout)',
+      };
+}
+
+/// HTTP 오류 하나 — 상태 코드만 들고 다닌다.
+class AiException implements Exception {
+  const AiException(this.status);
+
+  final int status;
+}
+
+/// 프록시 대신 쓰는 가짜 AI. 1초 기다린 뒤 답하거나 오류를 던진다.
+class FakeAiClient {
+  FakeMode mode = FakeMode.ok;
+
+  Future<String> chat(String text) async {
+    await Future.delayed(const Duration(seconds: 1));
+    switch (mode) {
+      case FakeMode.ok:
+        return '"$text"에 대한 AI의 답입니다.';
+      case FakeMode.unauthorized401:
+        throw const AiException(401);
+      case FakeMode.rateLimit429:
+        throw const AiException(429);
+      case FakeMode.server500:
+        throw const AiException(500);
+      case FakeMode.timeout:
+        // 실제로는 30초를 기다리지만, 시연을 위해 바로 시간 초과를 낸다.
+        throw TimeoutException('응답 없음', const Duration(seconds: 30));
+    }
+  }
+}
+
 class ChatPage extends StatefulWidget {
   const ChatPage({super.key});
 
@@ -41,15 +94,78 @@ class _ChatPageState extends State<ChatPage> {
   /// 입력창의 글자를 읽고 지우는 컨트롤러.
   final _controller = TextEditingController();
 
-  /// 입력한 글을 내 말풍선으로 추가하고 입력창을 비운다.
+  final _ai = FakeAiClient();
+
+  /// 지금 AI 답을 기다리는 중인가 — 연타 방지.
+  bool _sending = false;
+
+  /// ④-1 오류 상태 하나 — null이면 오류 없음. 401·429·500·timeout 모두 여기로.
+  String? _error;
+
+  /// ④-3 재시도할 때 다시 보낼 마지막 메시지.
+  String? _lastText;
+
+  /// 입력한 글을 내 말풍선으로 추가하고 AI에게 보낸다.
   void _send() {
     final text = _controller.text.trim();
-    if (text.isEmpty) return; // 빈 글은 보내지 않는다
+    if (text.isEmpty || _sending) return; // 빈 글·연타는 보내지 않는다
     setState(() {
       _messages.add(ChatMessage(text: text, isUser: true));
     });
     _controller.clear();
+    _ask(text);
   }
+
+  /// ④-3 다시 시도 — 마지막 메시지를 다시 보낸다 (말풍선은 새로 만들지 않는다).
+  void _retry() {
+    final text = _lastText;
+    if (text == null || _sending) return;
+    _ask(text);
+  }
+
+  /// AI에게 묻고, 답이면 AI 말풍선 / 오류면 오류 상태로 바꾼다.
+  Future<void> _ask(String text) async {
+    setState(() {
+      _lastText = text;
+      _sending = true;
+      _error = null;
+    });
+    try {
+      final answer = await _chatWithBackoff(text);
+      if (!mounted) return;
+      setState(() => _messages.add(ChatMessage(text: answer, isUser: false)));
+    } on AiException catch (e) {
+      if (!mounted) return;
+      setState(() => _error = _messageFor(e.status));
+    } on TimeoutException {
+      if (!mounted) return;
+      setState(() => _error = '네트워크를 확인해 주세요');
+    } finally {
+      // 성공이든 실패든 입력 잠금을 푼다 — 오류 뒤에도 입력이 된다.
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  /// ④-5 429면 지수 백오프: 1초 → 2초 기다렸다가 다시 시도한다.
+  Future<String> _chatWithBackoff(String text) async {
+    const delays = [Duration(seconds: 1), Duration(seconds: 2)];
+    for (var attempt = 0;; attempt++) {
+      try {
+        return await _ai.chat(text).timeout(const Duration(seconds: 30));
+      } on AiException catch (e) {
+        if (e.status != 429 || attempt >= delays.length) rethrow;
+        await Future.delayed(delays[attempt]);
+      }
+    }
+  }
+
+  /// ④-1 상태 코드 → 사용자에게 보여 줄 문구.
+  String _messageFor(int status) => switch (status) {
+        401 => '키/권한을 확인해 주세요',
+        429 => '잠시 후 다시 시도해 주세요',
+        500 => '응답을 받지 못했습니다',
+        _ => '네트워크를 확인해 주세요',
+      };
 
   @override
   void dispose() {
@@ -59,20 +175,33 @@ class _ChatPageState extends State<ChatPage> {
 
   @override
   Widget build(BuildContext context) {
+    // Reduce Motion(애니메이션 줄이기)이 켜져 있으면 전환을 즉시 보여 준다.
+    final reduceMotion = MediaQuery.of(context).disableAnimations;
+
     return Scaffold(
       // ✅ 할 일 5 — 키보드가 올라오면 body가 줄어들어 입력창이 위로 밀린다.
       //    SafeArea는 홈 인디케이터·노치를 피한다.
       resizeToAvoidBottomInset: true,
-      appBar: AppBar(title: const Text('AI Chat — 실습 1')),
+      appBar: AppBar(
+        title: const Text('AI Chat — 실습 1'),
+        actions: [
+          // 시험용: 서버가 어떤 결과를 돌려줄지 고른다.
+          PopupMenuButton<FakeMode>(
+            icon: const Icon(Icons.bug_report_outlined),
+            tooltip: '서버 응답 바꾸기 (시험용)',
+            initialValue: _ai.mode,
+            onSelected: (mode) => setState(() => _ai.mode = mode),
+            itemBuilder: (_) => [
+              for (final mode in FakeMode.values)
+                PopupMenuItem(value: mode, child: Text(mode.label)),
+            ],
+          ),
+        ],
+      ),
       body: SafeArea(
         child: Column(
           children: [
-            // ─────────────────────────────────────────────────────────
-            // ✅ 할 일 1 — 완료된 부분
-            //    ListView.builder + reverse: true
-            //    · reverse:true면 index 0이 화면 맨 아래(최신)다.
-            //    · 그래서 _messages[length - 1 - i]로 거꾸로 꺼낸다.
-            // ─────────────────────────────────────────────────────────
+            // ✅ 할 일 1 — ListView.builder + reverse: true (최신이 아래)
             // ✅ 할 일 4 — 빈 상태: Stack으로 목록 위에 안내 문구를 겹친다
             Expanded(
               child: Stack(
@@ -105,24 +234,31 @@ class _ChatPageState extends State<ChatPage> {
               ),
             ),
 
-            // ─────────────────────────────────────────────────────────
-            // TODO 4 — 빈 상태
-            // TIP: ListView를 Stack으로 감싸고, 목록이 비었을 때만
-            //      Center(child: Text('무엇이든 물어보세요'))를 위에 띄운다.
-            //      지금은 목록에 가짜 대화가 있어 빈 상태가 보이지 않는다.
-            //      _messages를 비우고 확인해 보자.
-            // ─────────────────────────────────────────────────────────
+            // 기다리는 동안 보여 주는 표시 (실습 ③에서 점 3개 애니메이션으로 바꿀 자리)
+            if (_sending)
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text('AI가 답을 쓰는 중…'),
+                ),
+              ),
 
-            // ─────────────────────────────────────────────────────────
-            // TODO 3 — 입력창 (TextField + 전송 버튼)
-            // TIP:
-            //  · final _controller = TextEditingController(); 를 State에 둔다.
-            //  · Row(children: [Expanded(TextField(...)), IconButton.filled(...)])
-            //  · TextField(textInputAction: TextInputAction.send,
-            //             onSubmitted: (_) => _send())
-            //  · 보낼 때 _controller.clear() 하고 setState로 목록에 추가한다.
-            //  · dispose()에서 _controller.dispose()를 잊지 않는다.
-            // ─────────────────────────────────────────────────────────
+            // ✅ 실습 ④-2·4 — 오류 말풍선 + 다시 시도, AnimatedSwitcher로 전환
+            //    SnackBar처럼 사라지지 않고 화면에 남는다.
+            AnimatedSwitcher(
+              duration: reduceMotion
+                  ? Duration.zero
+                  : const Duration(milliseconds: 200),
+              child: _error == null
+                  ? const SizedBox.shrink(key: ValueKey('no-error'))
+                  : _ErrorBubble(
+                      key: ValueKey(_error),
+                      message: _error!,
+                      onRetry: _sending ? null : _retry,
+                    ),
+            ),
+
             // ✅ 할 일 3 — 입력창: TextField(늘어나는 칸) + 전송 버튼
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
@@ -142,7 +278,8 @@ class _ChatPageState extends State<ChatPage> {
                   const SizedBox(width: 8),
                   IconButton.filled(
                     icon: const Icon(Icons.send),
-                    onPressed: _send,
+                    // 기다리는 동안은 버튼을 잠가 연타해도 한 번만 보낸다.
+                    onPressed: _sending ? null : _send,
                   ),
                 ],
               ),
@@ -154,26 +291,44 @@ class _ChatPageState extends State<ChatPage> {
   }
 }
 
-/// ───────────────────────────────────────────────────────────────
-/// TODO 2 — 말풍선 2종 (사용자 오른쪽 / AI 왼쪽)
-///
-/// 지금은 글자만 보이는 상자다. 다음을 채워 넣자.
-///
-/// TIP:
-///  · Align(alignment: isUser ? Alignment.centerRight : Alignment.centerLeft)
-///  · Container(
-///      margin: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-///      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-///      constraints: BoxConstraints(maxWidth: 420),
-///      decoration: BoxDecoration(
-///        color: isUser ? colorScheme.primaryContainer
-///                      : colorScheme.surfaceContainerHighest,
-///        borderRadius: BorderRadius.circular(14),
-///      ),
-///    )
-///  · 색은 Theme.of(context).colorScheme에서 꺼내면 다크 모드에서도 안전하다.
-///  · 긴 글은 자동으로 줄바꿈된다. maxWidth만 잡아 주면 된다.
-/// ───────────────────────────────────────────────────────────────
+/// 실습 ④ — 오류 말풍선. 문구와 "다시 시도" 버튼을 보여 준다.
+class _ErrorBubble extends StatelessWidget {
+  const _ErrorBubble({super.key, required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback? onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+      padding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
+      decoration: BoxDecoration(
+        color: colors.errorContainer,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.error_outline, color: colors.onErrorContainer),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(color: colors.onErrorContainer),
+            ),
+          ),
+          TextButton(
+            onPressed: onRetry,
+            child: const Text('다시 시도'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// ✅ 할 일 2 — 말풍선 2종 (사용자 오른쪽 / AI 왼쪽)
 class _Bubble extends StatelessWidget {
   const _Bubble({required this.message});
 
