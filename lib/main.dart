@@ -125,10 +125,23 @@ class _Bubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      child: Text(message.text),
+    final colors = Theme.of(context).colorScheme;
+    final isUser = message.isUser;
+
+    return Align(
+      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        constraints: const BoxConstraints(maxWidth: 420),
+        decoration: BoxDecoration(
+          color: isUser
+              ? colors.primaryContainer
+              : colors.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Text(message.text),
+      ),
     );
   }
 }
