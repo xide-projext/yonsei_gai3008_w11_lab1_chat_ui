@@ -27,25 +27,31 @@ class ChatMessage {
   final bool isUser;
 }
 
+/// 실습용 가짜 대화 — API를 붙이기 전까지 이 목록으로 화면을 만든다.
+const List<ChatMessage> _fakeMessages = [
+  ChatMessage(text: '오늘 뭐 배워?', isUser: true),
+  ChatMessage(text: 'AI 챗봇에 움직이는 응답을 붙입니다.', isUser: false),
+  ChatMessage(text: '타이핑 점은 왜 필요해요?', isUser: true),
+  ChatMessage(
+    text: '응답이 1초를 넘으면 앱이 멈춘 것처럼 보이기 때문입니다.',
+    isUser: false,
+  ),
+];
+
 class ChatPage extends StatefulWidget {
-  const ChatPage({super.key});
+  const ChatPage({super.key, this.initialMessages = _fakeMessages});
+
+  /// 처음에 보여 줄 대화. 테스트에서 빈 목록([])을 넣어 빈 상태를 확인한다.
+  final List<ChatMessage> initialMessages;
 
   @override
   State<ChatPage> createState() => _ChatPageState();
 }
 
 class _ChatPageState extends State<ChatPage> {
-  /// 실습용 가짜 대화 — API를 붙이기 전까지 이 목록으로 화면을 만든다.
-  /// TODO 3에서 메시지를 추가해야 하므로 const를 뺐다. (const면 add()가 안 된다)
-  final List<ChatMessage> _messages = [
-    const ChatMessage(text: '오늘 뭐 배워?', isUser: true),
-    const ChatMessage(text: 'AI 챗봇에 움직이는 응답을 붙입니다.', isUser: false),
-    const ChatMessage(text: '타이핑 점은 왜 필요해요?', isUser: true),
-    const ChatMessage(
-      text: '응답이 1초를 넘으면 앱이 멈춘 것처럼 보이기 때문입니다.',
-      isUser: false,
-    ),
-  ];
+  /// 화면에 그릴 대화 목록.
+  /// initialMessages를 복사해서 쓰므로 add() 해도 원본은 바뀌지 않는다.
+  late final List<ChatMessage> _messages = List.of(widget.initialMessages);
 
   /// 입력창의 글자를 읽고 지우는 역할.
   final TextEditingController _controller = TextEditingController();
@@ -73,9 +79,12 @@ class _ChatPageState extends State<ChatPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // TODO 5 — 키보드가 입력창을 가리지 않게
-      // TIP: Scaffold의 resizeToAvoidBottomInset은 기본값이 true다.
-      //      body를 SafeArea로 감싸 홈 인디케이터와 노치를 피한다.
+      // ✅ 할 일 5 — 키보드가 입력창을 가리지 않게
+      //    · Scaffold의 resizeToAvoidBottomInset은 기본값이 true다.
+      //      키보드가 올라오면 body 높이가 "키보드 위까지"로 줄어들기 때문에
+      //      Column 맨 아래에 있는 입력창이 자동으로 키보드 위로 올라온다.
+      //      (그래서 따로 옵션을 켤 필요가 없다)
+      //    · body를 SafeArea로 감싸 홈 인디케이터와 노치 영역을 피한다.
       appBar: AppBar(title: const Text('AI Chat — 실습 1')),
       body: SafeArea(
         child: Column(
@@ -87,26 +96,40 @@ class _ChatPageState extends State<ChatPage> {
             //    · 그래서 _messages[length - 1 - i]로 거꾸로 꺼낸다.
             // ─────────────────────────────────────────────────────────
             Expanded(
-              child: ListView.builder(
-                reverse: true,
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                itemCount: _messages.length,
-                itemBuilder: (context, index) {
-                  final message =
-                      _messages[_messages.length - 1 - index];
-                  return _Bubble(message: message);
-                },
+              child: Stack(
+                children: [
+                  // ───────────────────────────────────────────────────
+                  // ✅ 할 일 1 — 완료된 부분 (그대로 유지)
+                  // ───────────────────────────────────────────────────
+                  ListView.builder(
+                    reverse: true,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    itemCount: _messages.length,
+                    itemBuilder: (context, index) {
+                      final message =
+                          _messages[_messages.length - 1 - index];
+                      return _Bubble(message: message);
+                    },
+                  ),
+
+                  // ───────────────────────────────────────────────────
+                  // ✅ 할 일 4 — 빈 상태
+                  //    목록이 비었을 때만 Stack 위에 안내 문구를 겹쳐 띄운다.
+                  //    메시지가 생기면 if가 거짓이 되어 문구가 사라진다.
+                  // ───────────────────────────────────────────────────
+                  if (_messages.isEmpty)
+                    Center(
+                      child: Text(
+                        '무엇이든 물어보세요',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
-
-            // ─────────────────────────────────────────────────────────
-            // TODO 4 — 빈 상태
-            // TIP: ListView를 Stack으로 감싸고, 목록이 비었을 때만
-            //      Center(child: Text('무엇이든 물어보세요'))를 위에 띄운다.
-            //      지금은 목록에 가짜 대화가 있어 빈 상태가 보이지 않는다.
-            //      _messages를 비우고 확인해 보자.
-            // ─────────────────────────────────────────────────────────
-
             // ─────────────────────────────────────────────────────────
             // ✅ 할 일 3 — 입력창 (TextField + 전송 버튼)
             //    · Row 안에서 TextField를 Expanded로 감싸 남은 공간을 채운다.
@@ -145,24 +168,12 @@ class _ChatPageState extends State<ChatPage> {
 }
 
 /// ───────────────────────────────────────────────────────────────
-/// TODO 2 — 말풍선 2종 (사용자 오른쪽 / AI 왼쪽)
+/// ✅ 할 일 2 — 말풍선 2종 (사용자 오른쪽 / AI 왼쪽)
 ///
-/// 지금은 글자만 보이는 상자다. 다음을 채워 넣자.
-///
-/// TIP:
-///  · Align(alignment: isUser ? Alignment.centerRight : Alignment.centerLeft)
-///  · Container(
-///      margin: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-///      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-///      constraints: BoxConstraints(maxWidth: 420),
-///      decoration: BoxDecoration(
-///        color: isUser ? colorScheme.primaryContainer
-///                      : colorScheme.surfaceContainerHighest,
-///        borderRadius: BorderRadius.circular(14),
-///      ),
-///    )
-///  · 색은 Theme.of(context).colorScheme에서 꺼내면 다크 모드에서도 안전하다.
-///  · 긴 글은 자동으로 줄바꿈된다. maxWidth만 잡아 주면 된다.
+/// · Align으로 isUser면 오른쪽, 아니면 왼쪽에 붙인다.
+/// · Container의 margin/padding/BoxDecoration으로 말풍선 모양을 만든다.
+/// · constraints(maxWidth: 420)로 너비를 제한해 긴 글은 자동 줄바꿈된다.
+/// · 색은 Theme.of(context).colorScheme에서 꺼내 다크 모드에서도 안전하다.
 /// ───────────────────────────────────────────────────────────────
 class _Bubble extends StatelessWidget {
   const _Bubble({required this.message});
