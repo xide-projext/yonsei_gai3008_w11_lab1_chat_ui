@@ -1,0 +1,25 @@
+{
+    // F5 → 맨 위 설정이 실행된다.
+    // MOCK: 서버 없이 가짜 AI로 실행 (/401 /429 /500 /timeout /slow 로 오류 시험)
+    // Proxy: w12/ai 프록시(localhost:8787)를 먼저 켠 뒤 실행
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "AI Chat (MOCK · 서버 없이)",
+            "request": "launch",
+            "type": "dart",
+            "args": ["--dart-define=MOCK=true"]
+        },
+        {
+            "name": "AI Chat (Proxy · localhost:8787)",
+            "request": "launch",
+            "type": "dart"
+        },
+        {
+            "name": "AI Chat (Proxy · release)",
+            "request": "launch",
+            "type": "dart",
+            "flutterMode": "release"
+        }
+    ]
+}
