@@ -14,7 +14,8 @@ void main() {
     expect(find.byType(ListView), findsOneWidget);
     expect(find.text('오늘 뭐 배워?'), findsOneWidget);
 
-    // 아직 입력창은 TODO 상태다
-    expect(find.textContaining('TODO 3'), findsOneWidget);
+    // 할 일 3: 입력창과 전송 버튼이 있다
+    expect(find.byType(TextField), findsOneWidget);
+    expect(find.byIcon(Icons.send), findsOneWidget);
   });
 }
